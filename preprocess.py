@@ -5,12 +5,9 @@ from io import BytesIO
 from typing import Dict, Tuple
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import PIL
 import requests
-from bs4 import BeautifulSoup
 from PIL import Image
 
 # TODO this has to got in the executing function
@@ -69,7 +66,7 @@ def convert_image_PIL_to_cv_gray(
 
 
 def locate_face_in_image(
-    cv_gray: np.array, i: int, face_cascade_loc: str
+    cv_gray: np.ndarray, i: int, face_cascade_loc: str
 ) -> Tuple(int, int, int, int):
     """Extract the pre-trained face detector, run it, and return the
     coordinates (x,y,w,h) for the the first rectangle containing a 
@@ -92,8 +89,46 @@ def locate_face_in_image(
     return cv_box
 
 
-def convert_cv_box_to_crop_box():
-    """Return a "crop box" in the right format [left, upper, right, lower] ?????????????????
-    to crop an image.
+def crop_image(
+    cv_gray: np.ndarray(),
+    cv_box: Tuple(int, int, int, int),
+    scale_factor: float,
+) -> np.ndarray:
+    """Return a cropped square cutout of the original grayscale image
+    centered around the face. The scale factor can be used to add
+    some margin around the face (if set > 1).
     """
+    x, y, w, h = cv_box
+    x_delta = int(max((scale_factor - 1) * w, 0))
+    y_delta = int(max((scale_factor - 1) * h, 0))
+
+    # Use np.array slicing for the cropping
+    face_gray = cv_gray[
+        y - y_delta : y + y_delta + h, x - x_delta : x + x_delta + w
+    ].copy()
+    return face_gray
+
+
+def convert_image_cv_gray_to_cv_rgb(face_gray: np.ndarray) -> np.ndarray:
+    """Convert cv image (numpy array) from grayscale to RGB
+    color scale. (This will be used as training data.)
+    """
+    face_rbg = cv2.cvtColor(face_gray, cv2.COLOR_GRAY2RGB)
+    return face_rbg
+
+
+def resize_image_cv(
+    face_rbg: np.ndarray, dsize: Tuple(int, int) = None
+) -> np.ndarray:
+    """Resize image to given size. If no dsize tuple (width, 
+    height in pixels) is passed, the size does not change.
+    """
+    if dsize:
+        face_final = cv2.resize(face_rbg, dsize)
+    else:
+        face_final = face_rbg
+    return face_final
+
+
+def save_final_image(face_final: np.ndarray, dir_path: str, i: int):
     pass

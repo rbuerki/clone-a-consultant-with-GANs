@@ -1,0 +1,43 @@
+# Shortened version of my default.yml, added Pytorch stuff (conda) and opencv (pip)
+
+name: pytorch
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
+  - pytorch
+dependencies:
+  - python=3.8
+  # PYTORCH & 
+  - pytorch
+  - torchvision
+  - cudatoolkit=10.2
+  # CODE FORMATTERS & lINTERS
+  - black
+  - autopep8
+  - flake8
+  - flake8-bugbear
+  - mypy
+  # JUPYTER STUFF
+  - jupyter
+  - jupyter_contrib_nbextensions
+  - ipywidgets
+  # DATA RELATED
+  - numpy
+  - scikit-learn
+  - pyarrow
+  - openpyxl
+  # PLOTTING
+  - matplotlib
+  - seaborn
+  # TESTING & DEVELOPMENT
+  - pip
+  # OTHER
+  - requests
+  - beautifulsoup4
+  - boto3
+  - tqdm
+
+  - pip:
+    - data-science-types  # for type checking of pd, np, matplotlib
+    - opencv-python

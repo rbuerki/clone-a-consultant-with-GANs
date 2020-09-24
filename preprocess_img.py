@@ -26,7 +26,8 @@ def parse_config_img_data(path_to_cfg: str) -> Tuple[str, str, str, str, str]:
     path_to_fc = config.get("IMG_PROCESS", "FACE_CASCADE_RELPATH")
     scale_factor = float(config.get("IMG_PROCESS", "SCALE_FACTOR"))
     dsize = tuple(json.loads(config.get("IMG_PROCESS", "DSIZE")))
-    return full_url, base_url, path_to_fc, scale_factor, dsize
+    save_dir = config.get("STORAGE", "IMG_LOCAL_RELPATH")
+    return full_url, base_url, path_to_fc, scale_factor, dsize, save_dir
 
 
 def scrape_data_from_website(full_url: str) -> Dict:
@@ -43,10 +44,10 @@ def instantiate_OpenCV_face_detector(path_to_fc: str) -> cv2.CascadeClassifier:
     """Load pre-trained Haar feature-based cascade classifier
     from a stored XML file and instantiate it.
     """
-    abs_path_to_fc = Path(path_to_fc).absolute()
-    if not Path.is_file(abs_path_to_fc):
+    abs_path_to_fc = path_to_fc.absolute()
+    if not abs_path_to_fc.is_file():
         raise AssertionError(
-            f"No valid path for classifier.xml at {abs_path_to_fc}"
+            f"No valid path for classifier.xml at {str(abs_path_to_fc)}"
         )
     face_cascade = cv2.CascadeClassifier(str(abs_path_to_fc))
     return face_cascade
@@ -64,9 +65,7 @@ def generate_full_link_to_image(
     return link_to_image
 
 
-def load_image_PIL(
-    link_to_image: str,
-) -> Optional[PIL.JpegImagePlugin.JpegImageFile]:
+def load_image_PIL(link_to_image: str,) -> Optional[PIL.Image.Image]:
     """Return picture in PIL image format, with standard RGB color
     scale. (Note: I somehow could not read directly from link into
     OpenCV image format.) If picture cannot be loaded, return None.
@@ -80,7 +79,7 @@ def load_image_PIL(
 
 
 def convert_image_PIL_to_cv_gray_and_rgb(
-    pil_rgb: PIL.JpegImagePlugin.JpegImageFile,
+    pil_rgb: PIL.Image.Image,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Return grayscale image in form of an numpy array (the image
     format OpenCV uses). Grayscale is the default for face detection
@@ -146,18 +145,43 @@ def resize_image_cv(
     return cv_out
 
 
-def save_final_image(face_final: np.ndarray, dir_path: str, i: int):
-    pass
+def check_for_save_dir(save_dir):
+    """Check if the given path to the directory for saving the
+    processed image data is valid, if not create the directory.
+    """
+    if not Path(save_dir).is_dir():
+        Path(save_dir).absolute().mkdir(parents=True)
+        print(
+            "Indicated directory for data saving did not yet",
+            "exist. It was created at:\n",
+            f"{str(Path(save_dir).absolute())}",
+        )
+
+
+def save_final_image(face_final: np.ndarray, save_dir: str, i: int):
+    """Convert the final face array back to PIL image format and save
+    it to disc, naming it with help of it's index_number.
+    """
+    file_name = f"face_{str(i)}.jpg"
+    save_path = Path(save_dir) / file_name
+
+    face_file = Image.fromarray(face_final)
+    face_file.save(save_path)
 
 
 def main(path_to_cfg):
-    """[summary]
-    """
-    count_invalid_img = count_no_face_img = count_multi_face_img = 0
+    """Full pipeline."""
+    count_invalid = count_no_face = count_multi_face = count_stored_face = 0
 
-    full_url, base_url, path_to_fc, scale_factor, dsize = parse_config_img_data(
-        path_to_cfg
-    )
+    (
+        full_url,
+        base_url,
+        path_to_fc,
+        scale_factor,
+        dsize,
+        save_dir,
+    ) = parse_config_img_data(path_to_cfg)
+
     employee_data = scrape_data_from_website(full_url)
     face_cascade = instantiate_OpenCV_face_detector(path_to_fc)
 
@@ -165,14 +189,14 @@ def main(path_to_cfg):
         link_to_image = generate_full_link_to_image(i, employee_data, base_url)
         pil_rgb = load_image_PIL(link_to_image)
         if pil_rgb is None:
-            count_invalid_img += 1
+            count_invalid += 1
             continue
         else:
             cv_gray, cv_rgb = convert_image_PIL_to_cv_gray_and_rgb(pil_rgb)
             cv_box, n_faces = detect_face_in_image(cv_gray, face_cascade)
             if n_faces == 0:
                 print(f"NO face detected for image nr {i}.")
-                count_no_face_img += 1
+                count_no_face += 1
                 continue
             else:
                 if n_faces > 1:
@@ -180,10 +204,21 @@ def main(path_to_cfg):
                         f"More than 1 face detected in image nr {i},",
                         "will use first only.",
                     )
-                    count_multi_face_img += 1
+                    count_multi_face += 1
                 face_rgb = crop_image(cv_rgb, cv_box, scale_factor=1.1)
                 face_final = resize_image_cv(face_rgb, dsize)
-                return face_final
+
+                check_for_save_dir(save_dir)
+                save_final_image(face_final, save_dir, i)
+                count_stored_face += 1
+
+    print(
+        "Image data processing complete!\n",
+        f"- Total images stored: {count_stored_face}\n"
+        f"  - of which with multiple faces: {count_multi_face}\n",
+        f"- Total images with no detected face: {count_no_face}\n",
+        f"- Total invalid images (default placeholder): {count_invalid}",
+    )
 
 
 if __name__ == "__main__":

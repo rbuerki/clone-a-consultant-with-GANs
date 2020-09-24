@@ -41,14 +41,19 @@ def generate_full_link_to_picture(
     return link_to_image
 
 
-def load_image_PIL(link_to_image: str) -> PIL.JpegImagePlugin.JpegImageFile:
+def load_image_PIL(
+    link_to_image: str,
+) -> Optional[PIL.JpegImagePlugin.JpegImageFile]:
     """Return picture in PIL image format, with standard RGB color
     scale. (Note: I somehow could not read directly from link into
-    OpenCV image format.)
+    OpenCV image format.) If picture cannot be loaded, return None.
     """
     r = requests.get(link_to_image)
-    pil_rgb = Image.open(BytesIO(r.content))
-    return pil_rgb
+    try:
+        pil_rgb = Image.open(BytesIO(r.content))
+        return pil_rgb
+    except PIL.UnidentifiedImageError:
+        return None  # TODO continue whole loop then ...
 
 
 def convert_image_PIL_to_cv_gray(
@@ -67,26 +72,26 @@ def convert_image_PIL_to_cv_gray(
 
 def locate_face_in_image(
     cv_gray: np.ndarray, i: int, face_cascade_loc: str
-) -> Tuple(int, int, int, int):
+) -> Optional[Tuple(int, int, int, int)]:
     """Extract the pre-trained face detector, run it, and return the
-    coordinates (x,y,w,h) for the the first rectangle containing a 
+    coordinates (x,y,w,h) for the the first rectangle containing a
     detected face in the list. (Note: There should never be more than
-    one person on a picture, if more faces are detected we will simply 
-    use the first in the list.)
+    one person on a picture, if more faces are detected we will simply
+    use the first in the list.) Return None if no face is detected.
     """
     face_cascade = cv2.CascadeClassifier(face_cascade_loc)
     faces = face_cascade.detectMultiScale(cv_gray)
 
-    # TODO what happens when no face is detected, what get's returned?
     if len(faces) == 0:
         print(f"NO face detected for image nr {i}")
-    if len(faces) > 1:
-        print(
-            f"More than 1 face detected in image nr {i}, will use first only."
-        )
-
-    cv_box = tuple(faces[0])
-    return cv_box
+        return None  # TODO continue that whole loop then
+    else:
+        if len(faces) > 1:
+            print(
+                f"More than 1 face detected in image nr {i}, will use first only."
+            )
+        cv_box = tuple(faces[0])
+        return cv_box
 
 
 def crop_image(

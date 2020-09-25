@@ -1,8 +1,9 @@
 import configparser
 from pathlib import Path
-from typing import Iterator, Optional, Tuple, Union
+from typing import Iterator, Tuple, Union
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 def parse_config_img_data(
@@ -35,18 +36,28 @@ def parse_config_img_data(
 
 
 def instantiate_s3_client(
-    aws_access_key_id: str, aws_secret_access_key: str
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    s3_region: str = "eu-west-1",
 ) -> boto3.client:
-    """Instantiate the s3 client using the provided credentials."""
+    """Instantiate the s3 client using the provided credentials
+    and passing a region of choice.
+    """
     try:
-        return boto3.client("s3", aws_access_key_id, aws_secret_access_key)
-    except boto3.ClientError as e:
+        s3_client = boto3.client(
+            "s3",
+            region_name=s3_region,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+        return s3_client
+    except ClientError as e:
         print(f"Could not instantiate s3 client: {e}")
         raise
 
 
 def check_for_s3_bucket(
-    s3_client: boto3.client, s3_bucket: str, s3_region: str
+    s3_client: boto3.client, s3_bucket: str, s3_region: str = "eu-west-1"
 ):
     """Check if the given bucket already exists in the s3 account.
     If not create the bucket.
@@ -58,7 +69,7 @@ def check_for_s3_bucket(
                 Bucket=s3_bucket,
                 CreateBucketConfiguration={"LocationConstraint": s3_region},
             )
-        except boto3.ClientError as e:
+        except ClientError as e:
             print(f"Bucket creation failed: {e}")
             raise
 
@@ -67,7 +78,8 @@ def create_file_generator(
     path_to_upload_data: Union[str, Path]
 ) -> Iterator[Path]:
     """Walk the directory tree at given path and return a generator
-    object containing all the file path objects."""
+    object containing all the file path objects.
+    """
     return Path(path_to_upload_data).rglob("*.*")
 
 
@@ -85,12 +97,12 @@ def upload_file_to_s3(
     try:
         s3_client.head_object(Bucket=s3_bucket, Key=s3_path)
         print(f"File found in s3 bucket! Skipping {s3_path}")
-    except boto3.ClientError:
+    except ClientError:
         try:
             print(f"Uploading {s3_path} ...")
-            s3_client.upload_file(local_path, s3_bucket, s3_path)
+            s3_client.upload_file(str(local_path), s3_bucket, s3_path)
             return True
-        except boto3.ClientError as e:
+        except ClientError as e:
             print(f"Upload failed: {e}")
             raise
 

@@ -1,7 +1,7 @@
 import configparser
 import json
 from io import BytesIO
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 from pathlib import Path
 
 import cv2
@@ -11,22 +11,26 @@ import requests
 from PIL import Image
 
 
-def parse_config_img_data(path_to_cfg: str) -> Tuple[str, str, str, str, str]:
-    """Retrieve necessary config stuff for image retreival
-    and preprocessing.
+def parse_config_img_data(
+    path_to_cfg: str,
+) -> Tuple[str, str, str, float, Tuple[int, int], str]:
+    """Retrieve necessary config stuff for image retreival and
+    preprocessing. (Btw. see `dev` folder for a more elegant way to
+    parse config files.)
     """
     config = configparser.ConfigParser()
     try:
         config.read(path_to_cfg)
     except FileNotFoundError as e:
-        raise (f"Please check the path to the config file: {e}")
+        print(f"Please check the path to the config file: {e}")
+        raise
 
-    full_url = config.get("SCRAPING", "FULL_URL")
-    base_url = config.get("SCRAPING", "BASE_URL")
+    full_url = config.get("IMG_PROCESS", "FULL_URL")
+    base_url = config.get("IMG_PROCESS", "BASE_URL")
     path_to_fc = config.get("IMG_PROCESS", "FACE_CASCADE_RELPATH")
     scale_factor = float(config.get("IMG_PROCESS", "SCALE_FACTOR"))
     dsize = tuple(json.loads(config.get("IMG_PROCESS", "DSIZE")))
-    save_dir = config.get("STORAGE", "IMG_LOCAL_RELPATH")
+    save_dir = config.get("IMG_PROCESS", "LOCAL_SAVE_RELPATH")
     return full_url, base_url, path_to_fc, scale_factor, dsize, save_dir
 
 
@@ -40,11 +44,13 @@ def scrape_data_from_website(full_url: str) -> Dict:
     return response_dict
 
 
-def instantiate_OpenCV_face_detector(path_to_fc: str) -> cv2.CascadeClassifier:
+def instantiate_OpenCV_face_detector(
+    path_to_fc: Union[Path, str]
+) -> cv2.CascadeClassifier:
     """Load pre-trained Haar feature-based cascade classifier
     from a stored XML file and instantiate it.
     """
-    abs_path_to_fc = path_to_fc.absolute()
+    abs_path_to_fc = Path(path_to_fc).absolute()
     if not abs_path_to_fc.is_file():
         raise AssertionError(
             f"No valid path for classifier.xml at {str(abs_path_to_fc)}"
@@ -88,7 +94,7 @@ def convert_image_PIL_to_cv_gray_and_rgb(
     No transformation back from grey to color, so we need both.
     """
     cv_rgb = np.array(pil_rgb)
-    cv_bgr = np.flip(cv_rgb, axis=-1)  # faster subsitute for cv2.RBG2BGR
+    cv_bgr = cv2.cvtColor(cv_rgb, cv2.COLOR_RBG2BGR)
     cv_gray = cv2.cvtColor(cv_bgr, cv2.COLOR_BGR2GRAY)
     return cv_gray, cv_rgb
 
@@ -169,8 +175,8 @@ def save_final_image(face_final: np.ndarray, save_dir: str, i: int):
     face_file.save(save_path)
 
 
-def main(path_to_cfg):
-    """Full pipeline."""
+def main(path_to_cfg: str):
+    """Run image preprocessing pipeline."""
     count_invalid = count_no_face = count_multi_face = count_stored_face = 0
 
     (

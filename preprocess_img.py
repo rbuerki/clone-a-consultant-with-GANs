@@ -34,16 +34,6 @@ def parse_config_img_data(
     return full_url, base_url, path_to_fc, scale_factor, dsize, save_dir
 
 
-def scrape_data_from_website(full_url: str) -> Dict:
-    """Return a dict containing the target website's content. (Here
-    from its `people` section. It's made up of personal information,
-    containing a path to a picture for each employee.)
-    """
-    response_json = requests.get(full_url)
-    response_dict = json.loads(response_json.text)
-    return response_dict
-
-
 def instantiate_OpenCV_face_detector(
     path_to_fc: Union[Path, str]
 ) -> cv2.CascadeClassifier:
@@ -57,6 +47,16 @@ def instantiate_OpenCV_face_detector(
         )
     face_cascade = cv2.CascadeClassifier(str(abs_path_to_fc))
     return face_cascade
+
+
+def scrape_data_from_website(full_url: str) -> Dict:
+    """Return a dict containing the target website's content. (Here
+    from its `people` section. It's made up of personal information,
+    containing a path to a picture for each employee.)
+    """
+    response_json = requests.get(full_url)
+    response_dict = json.loads(response_json.text)
+    return response_dict
 
 
 def generate_full_link_to_image(
@@ -90,8 +90,8 @@ def convert_image_PIL_to_cv_gray_and_rgb(
     """Return grayscale image in form of an numpy array (the image
     format OpenCV uses). Grayscale is the default for face detection
     in OpenCV. Note also that, when there's color, OpenCV does use
-    an inverted BGR scale, so we flip that first. And final note:
-    No transformation back from grey to color, so we need both.
+    an inverted BGR scale, so we flip that first. And because there is
+    no transformation back from grey to color, so we need both.
     """
     cv_rgb = np.array(pil_rgb)
     cv_bgr = cv2.cvtColor(cv_rgb, cv2.COLOR_RBG2BGR)
@@ -101,12 +101,12 @@ def convert_image_PIL_to_cv_gray_and_rgb(
 
 def detect_face_in_image(
     cv_gray: np.ndarray, face_cascade: cv2.CascadeClassifier,
-) -> Tuple[Tuple[Optional[int]], int]:
+) -> Tuple[Tuple[int], int]:
     """Run the face detector, and return the coordinates (x,y,w,h) for
     the the FIRST rectangle containing a detected face in the list.
     (Note: There should never be more than one person on a picture,
     if more faces are detected we will simply use the first in the
-    list.)If no face is detected, the tuple is empty. Also return the
+    list.) If no face is detected, the tuple is empty. Also return the
     number of faces found.
     """
     faces = face_cascade.detectMultiScale(cv_gray)
